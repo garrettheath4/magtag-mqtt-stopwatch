@@ -1,14 +1,15 @@
-# MagTag MQTT Smart Home Remote
+# MagTag MQTT Time Ago
 
-Display smart home status and control smart home devices over MQTT.
+Display how much time has elapsed between a timestamp fetched from an MQTT broker and the current time. The current time
+is also fetched from an MQTT broker so that a real-time clock is not needed on the MagTag e-ink display device.
 
 
 ## Quickstart
 
 1. Clone this repository and its Git submodules:
 
-        git clone https://github.com/garrettheath4/magtag-mqtt-remote.git
-        cd magtag-mqtt-remote/
+        git clone https://github.com/garrettheath4/magtag-mqtt-timeago.git
+        cd magtag-mqtt-timeago/
         git submodule init && git submodule update
 
 1. Plug in MagTag to your computer with a USB-C cable and turn the physical switch on it to the _On_ position. A
@@ -22,11 +23,12 @@ Display smart home status and control smart home devices over MQTT.
         secrets = {
             'ssid': 'myWifiNetworkName',
             'password': 'myWifiPassword',
-            'aio_username': 'garrettheath4',
-            'aio_key': 'aio_abcdefg1234567ABCDEFG1234567',
             'timezone': "America/New_York",  # http://worldtimeapi.org/timezones
             'broker': '192.168.0.50',  # IP or hostname of MQTT server
             'port': 1883,  # MQTT port, default: 1833
+            'topic_past': 'dogs/last_time_out',
+            'topic_now': 'time/now',
+            'refresh_mins': 1,  # minutes between each screen refresh; optional
         }
 
 1. Wait for the MagTag to restart and the code will run automatically.

@@ -26,11 +26,15 @@ except ImportError:
     raise
 
 
-MQTT_TOPIC_OUT = "dogs/last_time_out"
-MQTT_TOPIC_NOW = "time/now"
+MQTT_TOPIC_OUT = secrets["topic_past"]
+MQTT_TOPIC_NOW = secrets["topic_now"]
 SSID = secrets["ssid"]
 HOSTNAME = secrets["broker"]
 PORT = secrets["port"]
+REFRESH_INT_MINS = 1
+
+if "refresh_mins" in secrets:
+    REFRESH_INT_MINS = secrets["refresh_mins"]
 
 logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
@@ -140,7 +144,7 @@ def main():
         except MQTT.MMQTTException:
             logger.error("MQTT client is NOT connected")
             continue
-        logger.debug(f"MQTT client connected")
+        logger.debug("MQTT client connected")
         logger.debug("Starting MQTT client loop")
         # noinspection PyBroadException
         try:
@@ -158,8 +162,8 @@ def main():
                 return
             continue
 
-        logger.info("Sleeping for 60 seconds...")
-        time.sleep(60)
+        logger.info("Sleeping for %d minutes...", REFRESH_INT_MINS)
+        time.sleep(REFRESH_INT_MINS * 60)
         logger.debug("Repeating main loop")
 
 
