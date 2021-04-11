@@ -28,10 +28,12 @@ is also fetched from an MQTT broker so that a real-time clock is not needed on t
             'port': 1883,  # MQTT port, default: 1833
             'topic_past': 'dogs/last_time_out',
             'topic_now': 'time/now',
-            # minutes between each screen refresh; optional
+            # minutes between each screen refresh; optional (default 1)
             'refresh_mins': 1,
             # front LEDs will turn ON if stopwatch is over this many minutes; optional (-1 to disable)
             'leds_on_mins_threshold': 120,
+            # front LEDs will never turn on before this hour of the day (0 to 23, 24 to disable)
+            'leds_always_off_before_hour': 8,
         }
 
 1. Wait for the MagTag to restart and the code will run automatically.
