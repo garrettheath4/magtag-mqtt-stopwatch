@@ -32,9 +32,13 @@ SSID = secrets["ssid"]
 HOSTNAME = secrets["broker"]
 PORT = secrets["port"]
 REFRESH_INT_MINS = 1
+LEDS_ON_MINS_THRESHOLD = -1
 
 if "refresh_mins" in secrets:
     REFRESH_INT_MINS = secrets["refresh_mins"]
+
+if "leds_on_mins_threshold" in secrets:
+    LEDS_ON_MINS_THRESHOLD = secrets["leds_on_mins_threshold"]
 
 logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
@@ -100,19 +104,21 @@ def main():
             delta_time = time_now - time_out
             logger.debug("Delta: %s", delta_time)
             total_seconds = delta_time.seconds
+            total_minutes = total_seconds / 60
             hours = total_seconds // (60 * 60)
-            total_seconds = total_seconds - (hours * 60 * 60)
-            minutes = total_seconds // 60
+            remaining_seconds = total_seconds - (hours * 60 * 60)
+            minutes = remaining_seconds // 60
             delta_str = f"{hours} hr {minutes} min"
             magtag.set_text(delta_str)
-            if hours >= 2 and not leds_on:
-                leds_on = True
-                magtag.peripherals.neopixel_disable = False
-                magtag.peripherals.neopixels.brightness = 0.01
-                magtag.peripherals.neopixels.fill((0xff, 0xff, 0xff))
-            elif hours < 2 and leds_on:
-                leds_on = False
-                magtag.peripherals.neopixel_disable = True
+            if LEDS_ON_MINS_THRESHOLD >= 0:
+                if total_minutes >= LEDS_ON_MINS_THRESHOLD and not leds_on:
+                    leds_on = True
+                    magtag.peripherals.neopixel_disable = False
+                    magtag.peripherals.neopixels.brightness = 0.01
+                    magtag.peripherals.neopixels.fill((0xff, 0xff, 0xff))
+                elif total_minutes < LEDS_ON_MINS_THRESHOLD and leds_on:
+                    leds_on = False
+                    magtag.peripherals.neopixel_disable = True
 
     # Create a socket pool
     pool = socketpool.SocketPool(wifi.radio)
