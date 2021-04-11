@@ -66,8 +66,8 @@ def main():
             (magtag.graphics.display.width // 2) - 1,
             (magtag.graphics.display.height // 2) - 1,
         ),
-        text_scale=3,
-        text_anchor_point=(0.5, 0.5),
+        text_scale=11,
+        text_anchor_point=(0.5, 0.55),
         is_data=False,
     )
 
@@ -110,7 +110,7 @@ def main():
             hours = total_seconds // (60 * 60)
             remaining_seconds = total_seconds - (hours * 60 * 60)
             minutes = remaining_seconds // 60
-            delta_str = f"{hours} hr {minutes} min"
+            delta_str = f"{hours}:{minutes:02}"
             magtag.set_text(delta_str)
             if LEDS_ON_MINS_THRESHOLD >= 0:
                 if leds_on and (total_minutes < LEDS_ON_MINS_THRESHOLD or time_now.hour < LEDS_ALWAYS_OFF_BEFORE_HOUR):
