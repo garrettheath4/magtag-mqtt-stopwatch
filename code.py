@@ -67,7 +67,7 @@ def main():
 
     time_out = None
     time_now = None
-    screen_light_on = False
+    leds_on = False
 
     # Define callback methods which are called when events occur
     # pylint: disable=unused-argument
@@ -89,7 +89,7 @@ def main():
         logger.debug("New message on topic %s: %s", topic, msg_text)
         nonlocal time_out
         nonlocal time_now
-        nonlocal screen_light_on
+        nonlocal leds_on
         if topic == MQTT_TOPIC_OUT:
             time_out = datetime.datetime.fromisoformat(msg_text)
             logger.debug("Received out string: %s", time_out)
@@ -105,11 +105,14 @@ def main():
             minutes = total_seconds // 60
             delta_str = f"{hours} hr {minutes} min"
             magtag.set_text(delta_str)
-            if not screen_light_on and hours > 2:
-                screen_light_on = True
+            if hours >= 2 and not leds_on:
+                leds_on = True
                 magtag.peripherals.neopixel_disable = False
                 magtag.peripherals.neopixels.brightness = 0.01
-                magtag.peripherals.neopixels.fill((0xFF, 0xFF, 0xFF))
+                magtag.peripherals.neopixels.fill((0xff, 0xff, 0xff))
+            elif hours < 2 and leds_on:
+                leds_on = False
+                magtag.peripherals.neopixel_disable = True
 
     # Create a socket pool
     pool = socketpool.SocketPool(wifi.radio)
@@ -119,7 +122,7 @@ def main():
         broker=HOSTNAME,
         port=PORT,
         is_ssl=False,
-        keep_alive=75,
+        keep_alive=15,
         socket_pool=pool,
     )
     mqtt_client.enable_logger(adafruit_logging, log_level=adafruit_logging.DEBUG)
