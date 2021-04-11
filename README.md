@@ -37,12 +37,74 @@ is also fetched from an MQTT broker so that a real-time clock is not needed on t
 ## Requirements
 
 * [Adafruit MagTag 2.9" E-Ink WiFi Display](https://www.adafruit.com/product/4800)
-* [Home Assistant](https://www.home-assistant.io/) server
-  * Example: running on a Raspberry Pi or in a [Docker container](https://github.com/home-assistant/docker) running on
-    an [unRAID](https://unraid.net/) server on your network
 * MQTT broker server such as [Eclipse Mosquitto](https://mosquitto.org/)
   * Example: running on a Raspberry Pi or in a [Docker container](https://github.com/cmccambridge/mosquitto-unraid/)
-    running on an unRAID server on your network
+    running on an [unRAID](https://unraid.net/) server on your network
+
+
+## Home Assistant (Optional)
+
+You can run Home Assistant on a Raspberry Pi or in a [Docker container](https://github.com/home-assistant/docker)
+running on an unRAID server on your network. A [Home Assistant](https://www.home-assistant.io/) server is optional but
+recommended since it provides:
+
+1. an easy way to automatically publish the current time to a "now" topic on an MQTT broker
+1. an easy way to configure a smart button to "reset" the timer by publishing the current time to a "past" topic on an
+   MQTT broker
+
+
+### MQTT Current Time Automation
+
+Add this Automation to your Home Assistant to publish the current time to the `time/now` MQTT topic every minute:
+
+```yaml
+alias: MQTT Current Time
+description: Publish the current time to MQTT every minute
+trigger:
+  - platform: time_pattern
+    minutes: '*'
+condition: []
+action:
+  - service: mqtt.publish
+    data:
+      topic: time/now
+      retain: true
+      qos: '1'
+      payload_template: '{{ now().isoformat() }}'
+mode: single
+```
+
+Be sure to configure the [MQTT integration](https://www.home-assistant.io/integrations/mqtt) on your Home Assistant
+server first.
+
+
+### Reset Timer with Smart Button Automation
+
+Add this Automation to your Home Assistant to publish the current time to the `dogs/last_time_out` MQTT topic every time
+you press a smart button:
+
+```yaml
+alias: Reset Dog Timer
+description: ''
+trigger:
+  - device_id: b46f5fe1a48dae52a61ba4c47a06789f
+    domain: zha
+    platform: device
+    type: remote_button_short_press
+    subtype: turn_off
+condition: []
+action:
+  - service: mqtt.publish
+    data:
+      topic: dogs/last_time_out
+      retain: true
+      qos: '1'
+      payload_template: '{{ now().isoformat() }}'
+mode: single
+```
+
+You can use any Zigbee button that is compatible with [ZHA](https://www.home-assistant.io/integrations/zha/) for Home
+Assistant for this. It has been tested using an Ikea Trådfri on/off switch.
 
 
 
