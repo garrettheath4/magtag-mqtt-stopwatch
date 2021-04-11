@@ -47,9 +47,7 @@ logger.setLevel(adafruit_logging.DEBUG)
 
 
 def main():
-    magtag = MagTag(
-        debug=True,
-    )
+    magtag = MagTag()
 
     try:
         magtag.peripherals.neopixel_disable = True
