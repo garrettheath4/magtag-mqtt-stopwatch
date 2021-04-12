@@ -49,13 +49,6 @@ logger.setLevel(adafruit_logging.DEBUG)
 def main():
     magtag = MagTag()
 
-    try:
-        magtag.peripherals.neopixel_disable = True
-    except Exception as neopixel_ex:
-        logger.error("Failed to disable NeoPixels during init; skipping")
-        logger.error("%s: %s", type(neopixel_ex).__name__, neopixel_ex.args)
-
-    logger.info("WiFi connecting to %s", SSID)
     magtag.network.connect()
     logger.info("WiFi connected to %s", SSID)
 
@@ -118,7 +111,7 @@ def main():
                     leds_on = True
                     magtag.peripherals.neopixel_disable = False
                     magtag.peripherals.neopixels.brightness = 0.01
-                    magtag.peripherals.neopixels.fill((0xff, 0xff, 0xff))
+                    magtag.peripherals.neopixels.fill((0, 0xFF, 0))
 
     # Create a socket pool
     pool = socketpool.SocketPool(wifi.radio)
