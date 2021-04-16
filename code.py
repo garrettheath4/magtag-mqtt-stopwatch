@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Unlicense
 
 
+import sys
 import time
 import adafruit_datetime as datetime
 
@@ -46,9 +47,7 @@ logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
 
 
-def main():
-    magtag = MagTag()
-
+def main(magtag):
     magtag.network.connect()
     logger.info("WiFi connected to %s", SSID)
 
@@ -89,7 +88,8 @@ def main():
         nonlocal leds_on
         if topic == MQTT_TOPIC_OUT:
             time_out = datetime.datetime.fromisoformat(msg_text)
-            logger.debug("Received out string: %s", time_out)
+            logger.debug("Received 'last out' string: %s", time_out)
+            time_now = None
         elif topic == MQTT_TOPIC_NOW:
             time_now = datetime.datetime.fromisoformat(msg_text)
             logger.debug("Received now string: %s", time_now)
@@ -143,8 +143,9 @@ def main():
     while True:
         try:
             mqtt_client.is_connected()
-        except MQTT.MMQTTException:
+        except MQTT.MMQTTException as mqtt_ex:
             logger.error("MQTT client is NOT connected")
+            sys.print_exception(mqtt_ex)
             continue
         logger.debug("MQTT client connected")
         logger.debug("Starting MQTT client loop")
@@ -154,26 +155,34 @@ def main():
         except Exception as loop_ex:  # catch *all* exceptions
             logger.error("Failed to get data; retrying")
             logger.error("%s: %s", type(loop_ex).__name__, loop_ex.args)
+            sys.print_exception(loop_ex)
             # Don't resubscribe since the on_connect method always subscribes
             try:
                 mqtt_client.reconnect(resub_topics=False)
             except Exception as reconnect_ex:
                 logger.error("Failed to reconnect; resetting")
                 logger.error("%s: %s", type(reconnect_ex).__name__, reconnect_ex.args)
+                sys.print_exception(reconnect_ex)
                 magtag.peripherals.deinit()
                 return
             continue
 
-        logger.info("Sleeping for %d minutes...", REFRESH_INT_MINS)
-        time.sleep(REFRESH_INT_MINS * 60)
+        if leds_on:
+            logger.info("Sleeping for %d minutes...", REFRESH_INT_MINS)
+            time.sleep(REFRESH_INT_MINS * 60)
+        else:
+            logger.info("Sleeping deeply for %d minutes...", REFRESH_INT_MINS)
+            magtag.exit_and_deep_sleep(REFRESH_INT_MINS * 60)
         logger.debug("Repeating main loop")
 
 
 while True:
     try:
-        main()
+        magtag = MagTag(debug=True)
+        main(magtag)
     except Exception as main_ex:
         logger.error("Exception from main loop; retrying")
         logger.error("%s: %s", type(main_ex).__name__, main_ex.args)
-        time.sleep(10)
+        sys.print_exception(main_ex)
+        magtag.exit_and_deep_sleep(10)
         continue
