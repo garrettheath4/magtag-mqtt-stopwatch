@@ -197,6 +197,7 @@ def main(magtag):
 
 
 while True:
+    outer_magtag = False
     try:
         outer_magtag = MagTag(debug=True)
         main(outer_magtag)
