@@ -32,19 +32,26 @@ MQTT_TOPIC_NOW = secrets["topic_now"]
 SSID = secrets["ssid"]
 HOSTNAME = secrets["broker"]
 PORT = secrets["port"]
-REFRESH_INT_MINS = 1
-LEDS_ON_MINS_THRESHOLD = -1
-SLEEP_DAILY_BEFORE_HOUR = 24
-
-if "refresh_mins" in secrets:
-    REFRESH_INT_MINS = secrets["refresh_mins"]
-if "leds_on_mins_threshold" in secrets:
-    LEDS_ON_MINS_THRESHOLD = secrets["leds_on_mins_threshold"]
-if "leds_always_off_before_hour" in secrets:
-    SLEEP_DAILY_BEFORE_HOUR = secrets["sleep_daily_before_hour"]
+REFRESH_INT_MINS_KEY = "refresh_mins"
+REFRESH_INT_MINS_VAL = 1
+LEDS_ON_MINS_THRESHOLD_KEY = "leds_on_mins_threshold"
+LEDS_ON_MINS_THRESHOLD_VAL = -1
+SLEEP_DAILY_BEFORE_HOUR_KEY = "sleep_daily_before_hour"
+SLEEP_DAILY_BEFORE_HOUR_VAL = 24
 
 logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
+
+if REFRESH_INT_MINS_KEY in secrets:
+    REFRESH_INT_MINS_VAL = secrets[REFRESH_INT_MINS_KEY]
+if LEDS_ON_MINS_THRESHOLD_KEY in secrets:
+    LEDS_ON_MINS_THRESHOLD_VAL = secrets[LEDS_ON_MINS_THRESHOLD_KEY]
+if SLEEP_DAILY_BEFORE_HOUR_KEY in secrets:
+    SLEEP_DAILY_BEFORE_HOUR_VAL = secrets[SLEEP_DAILY_BEFORE_HOUR_KEY]
+
+logger.info(f"{REFRESH_INT_MINS_KEY} = {REFRESH_INT_MINS_VAL}")
+logger.info(f"{LEDS_ON_MINS_THRESHOLD_KEY} = {LEDS_ON_MINS_THRESHOLD_VAL}")
+logger.info(f"{SLEEP_DAILY_BEFORE_HOUR_KEY} = {SLEEP_DAILY_BEFORE_HOUR_VAL}")
 
 
 def main(magtag):
@@ -95,13 +102,15 @@ def main(magtag):
             # example msg_text = "2021-04-19T12:29:00.005120-04:00"
             time_now = datetime.datetime.fromisoformat(msg_text)
             logger.debug("Received now string: %s", time_now)
-            if SLEEP_DAILY_BEFORE_HOUR < 24:
+            if SLEEP_DAILY_BEFORE_HOUR_VAL < 24:
                 msg_text_head = msg_text[:11]
                 msg_text_tail = msg_text[26:]
-                off_until_str = f"{msg_text_head}{SLEEP_DAILY_BEFORE_HOUR:02}:00:00.000000{msg_text_tail}"
+                off_until_str = f"{msg_text_head}{SLEEP_DAILY_BEFORE_HOUR_VAL:02}:00:00.000000{msg_text_tail}"
                 off_until_time = datetime.datetime.fromisoformat(off_until_str)
                 until_on = off_until_time - time_now
                 if until_on.total_seconds() > 0:
+                    magtag.set_text("Zzz")
+                    logger.info(f"Deep sleeping for {until_on.total_seconds()} seconds (until {off_until_str})")
                     magtag.exit_and_deep_sleep(until_on.total_seconds())
         if time_outside and time_now:
             delta_time = time_now - time_outside
@@ -113,11 +122,11 @@ def main(magtag):
             minutes = remaining_seconds // 60
             delta_str = f"{hours}:{minutes:02}"
             magtag.set_text(delta_str)
-            if LEDS_ON_MINS_THRESHOLD >= 0:
-                if leds_on and (total_minutes < LEDS_ON_MINS_THRESHOLD or time_now.hour < SLEEP_DAILY_BEFORE_HOUR):
+            if LEDS_ON_MINS_THRESHOLD_VAL >= 0:
+                if leds_on and (total_minutes < LEDS_ON_MINS_THRESHOLD_VAL or time_now.hour < SLEEP_DAILY_BEFORE_HOUR_VAL):
                     leds_on = False
                     magtag.peripherals.neopixel_disable = True
-                elif not leds_on and total_minutes >= LEDS_ON_MINS_THRESHOLD:
+                elif not leds_on and total_minutes >= LEDS_ON_MINS_THRESHOLD_VAL:
                     leds_on = True
                     magtag.peripherals.neopixel_disable = False
                     magtag.peripherals.neopixels.brightness = 0.01
@@ -179,11 +188,11 @@ def main(magtag):
             continue
 
         if leds_on:
-            logger.info("Sleeping for %d minutes...", REFRESH_INT_MINS)
-            time.sleep(REFRESH_INT_MINS * 60)
+            logger.info("Sleeping for %d minutes...", REFRESH_INT_MINS_VAL)
+            time.sleep(REFRESH_INT_MINS_VAL * 60)
         else:
-            logger.info("Sleeping deeply for %d minutes...", REFRESH_INT_MINS)
-            magtag.exit_and_deep_sleep(REFRESH_INT_MINS * 60)
+            logger.info("Sleeping deeply for %d minutes...", REFRESH_INT_MINS_VAL)
+            magtag.exit_and_deep_sleep(REFRESH_INT_MINS_VAL * 60)
         logger.debug("Repeating main loop")
 
 
