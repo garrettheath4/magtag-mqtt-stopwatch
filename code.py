@@ -34,14 +34,14 @@ HOSTNAME = secrets["broker"]
 PORT = secrets["port"]
 REFRESH_INT_MINS = 1
 LEDS_ON_MINS_THRESHOLD = -1
-LEDS_ALWAYS_OFF_BEFORE_HOUR = 24
+SLEEP_DAILY_BEFORE_HOUR = 24
 
 if "refresh_mins" in secrets:
     REFRESH_INT_MINS = secrets["refresh_mins"]
 if "leds_on_mins_threshold" in secrets:
     LEDS_ON_MINS_THRESHOLD = secrets["leds_on_mins_threshold"]
 if "leds_always_off_before_hour" in secrets:
-    LEDS_ALWAYS_OFF_BEFORE_HOUR = secrets["leds_always_off_before_hour"]
+    SLEEP_DAILY_BEFORE_HOUR = secrets["sleep_daily_before_hour"]
 
 logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
@@ -61,13 +61,13 @@ def main(magtag):
         is_data=False,
     )
 
-    time_out = None
+    time_outside = None
     time_now = None
     leds_on = False
 
     # Define callback methods which are called when events occur
     # pylint: disable=unused-argument
-    def connected(client, userdata, flags, rc):
+    def connected(client, userdata, flags, result_code):
         # This function will be called when the client is connected successfully to the broker.
         logger.debug("Connected to MQTT broker at %s:%d", HOSTNAME, PORT)
         logger.debug("Listening for topic changes on %s", MQTT_TOPIC_OUT)
@@ -76,35 +76,45 @@ def main(magtag):
         logger.debug("Listening for topic changes on %s", MQTT_TOPIC_NOW)
         client.subscribe(MQTT_TOPIC_NOW)
 
-    def disconnected(client, userdata, rc):
+    def disconnected(client, userdata, result_code):
         # This method is called when the client is disconnected
         logger.warning("Disconnected from MQTT broker %s:%d", HOSTNAME, PORT)
 
     def message(client, topic, msg_text):
         # This method is called when a topic the client is subscribed to has a new message.
         logger.debug("New message on topic %s: %s", topic, msg_text)
-        nonlocal time_out
+        nonlocal time_outside
         nonlocal time_now
         nonlocal leds_on
         if topic == MQTT_TOPIC_OUT:
-            time_out = datetime.datetime.fromisoformat(msg_text)
-            logger.debug("Received 'last out' string: %s", time_out)
+            # example msg_text = "2021-04-19T10:28:42.061205-04:00"
+            time_outside = datetime.datetime.fromisoformat(msg_text)
+            logger.debug("Received 'last out' string: %s", time_outside)
             time_now = None
         elif topic == MQTT_TOPIC_NOW:
+            # example msg_text = "2021-04-19T12:29:00.005120-04:00"
             time_now = datetime.datetime.fromisoformat(msg_text)
             logger.debug("Received now string: %s", time_now)
-        if time_out and time_now:
-            delta_time = time_now - time_out
+            if SLEEP_DAILY_BEFORE_HOUR < 24:
+                msg_text_head = msg_text[:11]
+                msg_text_tail = msg_text[26:]
+                off_until_str = f"{msg_text_head}{SLEEP_DAILY_BEFORE_HOUR:02}:00:00.000000{msg_text_tail}"
+                off_until_time = datetime.datetime.fromisoformat(off_until_str)
+                until_on = off_until_time - time_now
+                if until_on.total_seconds() > 0:
+                    magtag.exit_and_deep_sleep(until_on.total_seconds())
+        if time_outside and time_now:
+            delta_time = time_now - time_outside
             logger.debug("Delta: %s", delta_time)
-            total_seconds = delta_time.seconds
+            total_seconds = int(delta_time.total_seconds())
             total_minutes = total_seconds / 60
-            hours = total_seconds // (60 * 60)
+            hours = int(total_seconds // (60 * 60))
             remaining_seconds = total_seconds - (hours * 60 * 60)
             minutes = remaining_seconds // 60
             delta_str = f"{hours}:{minutes:02}"
             magtag.set_text(delta_str)
             if LEDS_ON_MINS_THRESHOLD >= 0:
-                if leds_on and (total_minutes < LEDS_ON_MINS_THRESHOLD or time_now.hour < LEDS_ALWAYS_OFF_BEFORE_HOUR):
+                if leds_on and (total_minutes < LEDS_ON_MINS_THRESHOLD or time_now.hour < SLEEP_DAILY_BEFORE_HOUR):
                     leds_on = False
                     magtag.peripherals.neopixel_disable = True
                 elif not leds_on and total_minutes >= LEDS_ON_MINS_THRESHOLD:
@@ -145,24 +155,25 @@ def main(magtag):
             mqtt_client.is_connected()
         except MQTT.MMQTTException as mqtt_ex:
             logger.error("MQTT client is NOT connected")
-            sys.print_exception(mqtt_ex)
+            sys.print_exception(mqtt_ex)  # pylint: disable=no-member
             continue
         logger.debug("MQTT client connected")
         logger.debug("Starting MQTT client loop")
         # noinspection PyBroadException
         try:
             mqtt_client.loop(10)
-        except Exception as loop_ex:  # catch *all* exceptions
+        except Exception as loop_ex:  # pylint: disable=broad-except
+            # catch *all* exceptions
             logger.error("Failed to get data; retrying")
             logger.error("%s: %s", type(loop_ex).__name__, loop_ex.args)
-            sys.print_exception(loop_ex)
+            sys.print_exception(loop_ex)  # pylint: disable=no-member
             # Don't resubscribe since the on_connect method always subscribes
             try:
                 mqtt_client.reconnect(resub_topics=False)
-            except Exception as reconnect_ex:
+            except Exception as reconnect_ex:  # pylint: disable=broad-except
                 logger.error("Failed to reconnect; resetting")
                 logger.error("%s: %s", type(reconnect_ex).__name__, reconnect_ex.args)
-                sys.print_exception(reconnect_ex)
+                sys.print_exception(reconnect_ex)  # pylint: disable=no-member
                 magtag.peripherals.deinit()
                 return
             continue
@@ -178,11 +189,12 @@ def main(magtag):
 
 while True:
     try:
-        magtag = MagTag(debug=True)
-        main(magtag)
-    except Exception as main_ex:
+        outer_magtag = MagTag(debug=True)
+        main(outer_magtag)
+    except Exception as main_ex:  # pylint: disable=broad-except
         logger.error("Exception from main loop; retrying")
         logger.error("%s: %s", type(main_ex).__name__, main_ex.args)
-        sys.print_exception(main_ex)
-        magtag.exit_and_deep_sleep(10)
+        sys.print_exception(main_ex)  # pylint: disable=no-member
+        if outer_magtag:
+            outer_magtag.exit_and_deep_sleep(10)
         continue
