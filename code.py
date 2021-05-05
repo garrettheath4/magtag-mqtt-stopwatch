@@ -13,7 +13,7 @@ import socketpool
 import wifi
 
 import adafruit_logging
-import adafruit_minimqtt.adafruit_minimqtt as MQTT
+import adafruit_minimqtt.adafruit_minimqtt as mqtt
 from adafruit_magtag.magtag import MagTag
 
 # Add a secrets.py to your filesystem that has a dictionary called secrets with "ssid" and
@@ -27,31 +27,94 @@ except ImportError:
     raise
 
 
+# Optional configuration keys and defaults
+REFRESH_INT_MINS_KEY = "refresh_mins"
+REFRESH_INT_MINS_DEFAULT = 1
+LEDS_ON_MINS_THRESHOLD_KEY = "leds_on_mins_threshold"
+LEDS_ON_MINS_THRESHOLD_DEFAULT = -1
+SLEEP_DAILY_BEFORE_HOUR_KEY = "sleep_daily_before_hour"
+SLEEP_DAILY_BEFORE_HOUR_DEFAULT = 24
+BACKLIGHT_BRIGHTNESS_KEY = "backlight_brightness"
+BACKLIGHT_BRIGHTNESS_DEFAULT = 0.0
+
+# Required configurations
 MQTT_TOPIC_OUT = secrets["topic_past"]
 MQTT_TOPIC_NOW = secrets["topic_now"]
 SSID = secrets["ssid"]
 HOSTNAME = secrets["broker"]
 PORT = secrets["port"]
-REFRESH_INT_MINS_KEY = "refresh_mins"
-REFRESH_INT_MINS_VAL = 1
-LEDS_ON_MINS_THRESHOLD_KEY = "leds_on_mins_threshold"
-LEDS_ON_MINS_THRESHOLD_VAL = -1
-SLEEP_DAILY_BEFORE_HOUR_KEY = "sleep_daily_before_hour"
-SLEEP_DAILY_BEFORE_HOUR_VAL = 24
+
+# Optional configurations
+refresh_int_mins_val = REFRESH_INT_MINS_DEFAULT
+leds_on_mins_threshold_val = LEDS_ON_MINS_THRESHOLD_DEFAULT
+sleep_daily_before_hour_val = SLEEP_DAILY_BEFORE_HOUR_DEFAULT
+backlight_brightness_val = BACKLIGHT_BRIGHTNESS_DEFAULT
 
 logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
 
-if REFRESH_INT_MINS_KEY in secrets:
-    REFRESH_INT_MINS_VAL = secrets[REFRESH_INT_MINS_KEY]
-if LEDS_ON_MINS_THRESHOLD_KEY in secrets:
-    LEDS_ON_MINS_THRESHOLD_VAL = secrets[LEDS_ON_MINS_THRESHOLD_KEY]
-if SLEEP_DAILY_BEFORE_HOUR_KEY in secrets:
-    SLEEP_DAILY_BEFORE_HOUR_VAL = secrets[SLEEP_DAILY_BEFORE_HOUR_KEY]
 
-logger.info(f"{REFRESH_INT_MINS_KEY} = {REFRESH_INT_MINS_VAL}")
-logger.info(f"{LEDS_ON_MINS_THRESHOLD_KEY} = {LEDS_ON_MINS_THRESHOLD_VAL}")
-logger.info(f"{SLEEP_DAILY_BEFORE_HOUR_KEY} = {SLEEP_DAILY_BEFORE_HOUR_VAL}")
+def get_optional_config(key, default):
+    if key in secrets:
+        logger.info("%s = %s", key, secrets[key])
+        return secrets[key]
+    logger.info("%s = %s  [default value]", key, default)
+    return default
+
+
+refresh_int_mins_val = get_optional_config(REFRESH_INT_MINS_KEY, refresh_int_mins_val)
+leds_on_mins_threshold_val = get_optional_config(LEDS_ON_MINS_THRESHOLD_KEY, leds_on_mins_threshold_val)
+sleep_daily_before_hour_val = get_optional_config(SLEEP_DAILY_BEFORE_HOUR_KEY, sleep_daily_before_hour_val)
+backlight_brightness_val = get_optional_config(BACKLIGHT_BRIGHTNESS_KEY, backlight_brightness_val)
+
+
+class LEDS:
+    OFF = 0
+    ALERT = 1
+    BACKLIGHT = 2
+
+    STATUS_STR = {
+        OFF: 'OFF',
+        ALERT: 'ALERT',
+        BACKLIGHT: 'BACKLIGHT',
+    }
+
+    def __init__(self, peripherals):
+        self.status = LEDS.OFF
+        self._peripherals = peripherals
+
+    def check(self, time_now, total_minutes):
+        if LEDS.should_leds_alert(time_now, total_minutes):
+            if self.status != LEDS.ALERT:
+                logger.debug("Setting LEDs to ALERT (green)")
+                self.status = LEDS.ALERT
+                self._peripherals.neopixel_disable = False
+                self._peripherals.neopixels.brightness = 1.0
+                self._peripherals.neopixels.fill((0, 0xFF, 0))
+        elif LEDS.should_leds_backlight():
+            if self.status != LEDS.BACKLIGHT:
+                logger.debug("Setting LEDs to BACKLIGHT")
+                self.status = LEDS.BACKLIGHT
+                self._peripherals.neopixel_disable = False
+                self._peripherals.neopixels.brightness = backlight_brightness_val
+                self._peripherals.neopixels.fill((0xFF, 0xFF, 0xFF))
+        else:  # the LEDs should be OFF
+            if self.status != LEDS.OFF:
+                logger.debug("Setting LEDs to OFF (from %s)", LEDS.STATUS_STR[self.status])
+                self.status = LEDS.OFF
+                self._peripherals.neopixel_disable = True
+
+    @classmethod
+    def should_leds_alert(cls, time_now, total_minutes):
+        return total_minutes >= leds_on_mins_threshold_val >= 0 and time_now.hour >= sleep_daily_before_hour_val
+
+    @classmethod
+    def should_leds_backlight(cls):
+        return backlight_brightness_val > 0.0
+
+    @classmethod
+    def leds_should_be_off(cls, time_now, total_minutes):
+        return not cls.should_leds_alert(time_now, total_minutes) and not cls.should_leds_backlight()
 
 
 def main(magtag):
@@ -70,7 +133,7 @@ def main(magtag):
 
     time_outside = None
     time_now = None
-    leds_on = False
+    leds = LEDS(magtag.peripherals)
 
     # Define callback methods which are called when events occur
     # pylint: disable=unused-argument
@@ -92,7 +155,7 @@ def main(magtag):
         logger.debug("New message on topic %s: %s", topic, msg_text)
         nonlocal time_outside
         nonlocal time_now
-        nonlocal leds_on
+        nonlocal leds
         if topic == MQTT_TOPIC_OUT:
             # example msg_text = "2021-04-19T10:28:42.061205-04:00"
             time_outside = datetime.datetime.fromisoformat(msg_text)
@@ -102,10 +165,10 @@ def main(magtag):
             # example msg_text = "2021-04-19T12:29:00.005120-04:00"
             time_now = datetime.datetime.fromisoformat(msg_text)
             logger.debug("Received now string: %s", time_now)
-            if SLEEP_DAILY_BEFORE_HOUR_VAL < 24:
+            if sleep_daily_before_hour_val < 24:
                 msg_text_head = msg_text[:11]
                 msg_text_tail = msg_text[26:]
-                off_until_str = f"{msg_text_head}{SLEEP_DAILY_BEFORE_HOUR_VAL:02}:00:00.000000{msg_text_tail}"
+                off_until_str = f"{msg_text_head}{sleep_daily_before_hour_val:02}:00:00.000000{msg_text_tail}"
                 off_until_time = datetime.datetime.fromisoformat(off_until_str)
                 until_on = off_until_time - time_now
                 if until_on.total_seconds() > 0:
@@ -122,21 +185,13 @@ def main(magtag):
             minutes = remaining_seconds // 60
             delta_str = f"{hours}:{minutes:02}"
             magtag.set_text(delta_str)
-            if LEDS_ON_MINS_THRESHOLD_VAL >= 0:
-                if leds_on and (total_minutes < LEDS_ON_MINS_THRESHOLD_VAL or time_now.hour < SLEEP_DAILY_BEFORE_HOUR_VAL):
-                    leds_on = False
-                    magtag.peripherals.neopixel_disable = True
-                elif not leds_on and total_minutes >= LEDS_ON_MINS_THRESHOLD_VAL:
-                    leds_on = True
-                    magtag.peripherals.neopixel_disable = False
-                    magtag.peripherals.neopixels.brightness = 0.01
-                    magtag.peripherals.neopixels.fill((0, 0xFF, 0))
+            leds.check(time_now, total_minutes)
 
     # Create a socket pool
     pool = socketpool.SocketPool(wifi.radio)
 
     # Set up a MiniMQTT Client
-    mqtt_client = MQTT.MQTT(
+    mqtt_client = mqtt.MQTT(
         broker=HOSTNAME,
         port=PORT,
         is_ssl=False,
@@ -162,7 +217,7 @@ def main(magtag):
     while True:
         try:
             mqtt_client.is_connected()
-        except MQTT.MMQTTException as mqtt_ex:
+        except mqtt.MMQTTException as mqtt_ex:
             logger.error("MQTT client is NOT connected")
             sys.print_exception(mqtt_ex)  # pylint: disable=no-member
             continue
@@ -187,12 +242,12 @@ def main(magtag):
                 return
             continue
 
-        if leds_on:
-            logger.info("Sleeping for %d minutes...", REFRESH_INT_MINS_VAL)
-            time.sleep(REFRESH_INT_MINS_VAL * 60)
+        if leds.status == LEDS.OFF:
+            logger.info("Sleeping deeply for %d minutes...", refresh_int_mins_val)
+            magtag.exit_and_deep_sleep(refresh_int_mins_val * 60)
         else:
-            logger.info("Sleeping deeply for %d minutes...", REFRESH_INT_MINS_VAL)
-            magtag.exit_and_deep_sleep(REFRESH_INT_MINS_VAL * 60)
+            logger.info("Sleeping lightly for %d minutes...", refresh_int_mins_val)
+            time.sleep(refresh_int_mins_val * 60)
         logger.debug("Repeating main loop")
 
 
