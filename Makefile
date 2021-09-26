@@ -7,10 +7,10 @@ DEV_LIB = adafruit-circuitpython-bundle-py-20210321/lib
 MODULE_DIRS = adafruit_bitmap_font adafruit_display_text adafruit_io adafruit_magtag adafruit_minimqtt adafruit_portalbase
 MODULE_FILES = adafruit_datetime adafruit_fakerequests adafruit_logging adafruit_requests neopixel simpleio
 
-code.py: FORCE
-	rsync -avh code.py "$(TARGET)/code.py"
+src/code.py: FORCE
+	rsync -avh src/code.py "$(TARGET)/code.py"
 
-prod: code.py
+prod: src/code.py
 	for dir in $(MODULE_DIRS); do \
 		rsync -avh "$(PROD_LIB)/$$dir" "$(TARGET)/lib/" ; \
 	done
@@ -18,7 +18,7 @@ prod: code.py
 		rsync -avh "$(PROD_LIB)/$$file.mpy" "$(TARGET)/lib/" ; \
 	done
 
-dev: code.py
+dev: src/code.py
 	for dir in $(MODULE_DIRS); do \
 		rsync -avh "$(DEV_LIB)/$$dir" "$(TARGET)/lib/" ; \
 	done

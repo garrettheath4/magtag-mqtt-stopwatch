@@ -117,7 +117,7 @@ class LEDS:
         return not cls.should_leds_alert(time_now, total_minutes) and not cls.should_leds_backlight()
 
 
-def main(magtag):
+def main_loop(magtag):
     magtag.network.connect()
     logger.info("WiFi connected to %s", SSID)
 
@@ -175,6 +175,8 @@ def main(magtag):
                     magtag.set_text("Zzz")
                     logger.info(f"Deep sleeping for {until_on.total_seconds()} seconds (until {off_until_str})")
                     magtag.exit_and_deep_sleep(until_on.total_seconds())
+        else:
+            logger.warning("Received unexpected topic '%s': %s", topic, msg_text)
         if time_outside and time_now:
             delta_time = time_now - time_outside
             logger.debug("Delta: %s", delta_time)
@@ -255,7 +257,7 @@ while True:
     outer_magtag = False
     try:
         outer_magtag = MagTag(debug=True)
-        main(outer_magtag)
+        main_loop(outer_magtag)
     except Exception as main_ex:  # pylint: disable=broad-except
         logger.error("Exception from main loop; retrying")
         logger.error("%s: %s", type(main_ex).__name__, main_ex.args)
