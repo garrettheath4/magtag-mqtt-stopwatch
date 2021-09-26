@@ -1,4 +1,4 @@
-# MagTag MQTT Time Ago
+# MagTag MQTT Stopwatch
 
 Display how much time has elapsed between a timestamp fetched from an MQTT broker and the current time. The current time
 is also fetched from an MQTT broker so that a real-time clock is not needed on the MagTag e-ink display device.
