@@ -139,7 +139,9 @@ class MagTagStopwatch:
 
         self._magtag.network.get_local_time()
 
-        self._past_time_obj = adafruit_datetime.datetime.now()
+        time_now = adafruit_datetime.datetime.now()
+        time_now._tzinfo = timezone_obj
+        self._past_time_objs = [time_now, None]
         self._current_displayed_text = "0:00"
 
         # Create big text box
@@ -153,50 +155,80 @@ class MagTagStopwatch:
             is_data=False,
         )
 
-        # # Create duo text box #1
-        # self.magtag.add_text(
-        #     text_position=(
-        #         (self.magtag.graphics.display.width // 2) - 1,
-        #         (self.magtag.graphics.display.height // 4) - 1,
-        #     ),
-        #     text_scale=6,
-        #     text_anchor_point=(0.5, 0.55),
-        #     is_data=False,
-        # )
-        #
-        # # Create duo text box #2
-        # self.magtag.add_text(
-        #     text_position=(
-        #         (self.magtag.graphics.display.width // 2) - 1,
-        #         (self.magtag.graphics.display.height // 4 * 3) - 1,
-        #     ),
-        #     text_scale=6,
-        #     text_anchor_point=(0.5, 0.55),
-        #     is_data=False,
-        # )
+        # Create duo text box #1
+        self._magtag.add_text(
+            text_position=(
+                (self._magtag.graphics.display.width // 2) - 1,
+                (self._magtag.graphics.display.height // 4) - 1,
+            ),
+            text_scale=7,
+            text_anchor_point=(0.5, 0.55),
+            is_data=False,
+        )
 
-    def set_past_time(self, past_time, auto_refresh_display=True):
-        self._past_time_obj = past_time
+        # Create duo text box #2
+        self._magtag.add_text(
+            text_position=(
+                (self._magtag.graphics.display.width // 2) - 1,
+                (self._magtag.graphics.display.height // 4 * 3) - 1,
+            ),
+            text_scale=5,
+            text_anchor_point=(0.5, 0.55),
+            is_data=False,
+        )
+
+    def set_past_time(self, past_time, time_idx=0, auto_refresh_display=True):
+        self._past_time_objs[time_idx] = past_time
         if auto_refresh_display:
             self.refresh_display()
+
+    def get_past_time(self, time_idx=0):
+        return self._past_time_objs[time_idx]
+
+    def _should_show_2_times(self) -> bool:
+        return self._past_time_objs[1]
+
+    @staticmethod
+    def timedelta_to_hours_minutes(delta_time: adafruit_datetime.timedelta):
+        total_seconds = int(delta_time.total_seconds())
+        hours = int(total_seconds // (60 * 60))
+        remaining_seconds = total_seconds - (hours * 60 * 60)
+        minutes = remaining_seconds // 60
+        return hours, minutes
 
     def refresh_display(self):
         time_now = adafruit_datetime.datetime.now()
         time_now._tzinfo = timezone_obj
         self._logger.debug("Time now:  %s", str(time_now))
-        self._logger.debug("Past time: %s", str(self._past_time_obj))
-        delta_time = time_now - self._past_time_obj
-        self._logger.debug("Delta time: %s", delta_time)
-        total_seconds = int(delta_time.total_seconds())
-        total_minutes = total_seconds / 60
-        hours = int(total_seconds // (60 * 60))
-        remaining_seconds = total_seconds - (hours * 60 * 60)
-        minutes = remaining_seconds // 60
-        delta_str = f"{hours}:{minutes:02}"
-        if delta_str != self._current_displayed_text:
-            self._current_displayed_text = delta_str
-            self._magtag.set_text(self._current_displayed_text)
-        self._leds.check(time_now, total_minutes)
+        delta_strs = []
+
+        # Primary time
+        self._logger.debug("Past time 1: %s", str(self.get_past_time(0)))
+        delta_time_1 = time_now - self.get_past_time(0)
+        self._logger.debug("Delta time 1: %s", delta_time_1)
+        (hours_1, minutes_1) = self.timedelta_to_hours_minutes(delta_time_1)
+        delta_strs.append(f"{hours_1}:{minutes_1:02}")
+        self._leds.check(time_now, hours_1 * 60 + minutes_1)
+
+        # Secondary time
+        if self._should_show_2_times():
+            self._logger.debug("Past time 2: %s", str(self.get_past_time(1)))
+            delta_time_2 = time_now - self.get_past_time(1)
+            self._logger.debug("Delta time 2: %s", delta_time_2)
+            (hours_2, minutes_2) = self.timedelta_to_hours_minutes(delta_time_2)
+            delta_strs.append(f"{hours_2}:{minutes_2:02}")
+
+        delta_strs_joined = " ".join(delta_strs)
+        if delta_strs_joined != self._current_displayed_text:
+            self._current_displayed_text = delta_strs_joined
+            if self._should_show_2_times():
+                self._magtag.set_text("", 0, auto_refresh=False)
+                self._magtag.set_text(delta_strs[0], 1, auto_refresh=False)
+                self._magtag.set_text(delta_strs[1], 2, auto_refresh=True)
+            else:
+                self._magtag.set_text(delta_strs[0], 0, auto_refresh=False)
+                self._magtag.set_text("", 1, auto_refresh=False)
+                self._magtag.set_text("", 2, auto_refresh=True)
 
     def leds_are_off(self) -> bool:
         return self._leds.status == LEDS.OFF
