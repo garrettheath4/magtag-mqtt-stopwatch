@@ -138,7 +138,7 @@ class MagTagStopwatch:
         self._logger.info("WiFi connected to %s", SSID)
         self._leds = LEDS(self._magtag.peripherals)
 
-        self._magtag.network.get_local_time()
+        self._magtag.get_local_time()
 
         time_now = adafruit_datetime.datetime.now()
         time_now._tzinfo = timezone_obj
@@ -148,8 +148,8 @@ class MagTagStopwatch:
         # Create big text box
         self._magtag.add_text(
             text_position=(
-                (self._magtag.graphics.display.width // 2) - 1,
-                (self._magtag.graphics.display.height // 2) - 1,
+                (self._magtag.graphics.display.width // 2),
+                (self._magtag.graphics.display.height // 2),
             ),
             text_scale=11,
             text_anchor_point=(0.5, 0.55),
@@ -159,10 +159,10 @@ class MagTagStopwatch:
         # Create duo text box #1
         self._magtag.add_text(
             text_position=(
-                (self._magtag.graphics.display.width // 2) - 1,
-                (self._magtag.graphics.display.height // 4) - 1,
+                (self._magtag.graphics.display.width // 2) + 1,
+                (self._magtag.graphics.display.height // 4) + 1,
             ),
-            text_scale=7,
+            text_scale=8,
             text_anchor_point=(0.5, 0.55),
             is_data=False,
         )
@@ -173,7 +173,7 @@ class MagTagStopwatch:
                 (self._magtag.graphics.display.width // 2) - 1,
                 (self._magtag.graphics.display.height // 4 * 3) - 1,
             ),
-            text_scale=5,
+            text_scale=4,
             text_anchor_point=(0.5, 0.55),
             is_data=False,
         )
@@ -265,20 +265,6 @@ while True:
                 time_outside = adafruit_datetime.datetime.fromisoformat(msg_text)
                 logger.debug("Received 'last out' string: %s", time_outside)
                 mtStopwatch.set_past_time(time_outside)
-            # elif topic == MQTT_TOPIC_NOW:
-            #     # example msg_text = "2021-04-19T12:29:00.005120-04:00"
-            #     time_now = adafruit_datetime.datetime.fromisoformat(msg_text)
-            #     logger.debug("Received now string: %s", time_now)
-            #     if sleep_daily_before_hour_val < 24:
-            #         msg_text_head = msg_text[:11]
-            #         msg_text_tail = msg_text[26:]
-            #         off_until_str = f"{msg_text_head}{sleep_daily_before_hour_val:02}:00:00.000000{msg_text_tail}"
-            #         off_until_time = adafruit_datetime.datetime.fromisoformat(off_until_str)
-            #         until_on = off_until_time - time_now
-            #         if until_on.total_seconds() > 0:
-            #             mtStopwatch.set_text("Zzz")
-            #             logger.info(f"Deep sleeping for {until_on.total_seconds()} seconds (until {off_until_str})")
-            #             mtStopwatch.exit_and_deep_sleep(until_on.total_seconds())
             else:
                 logger.warning("Received unexpected topic '%s': %s", topic, msg_text)
 
@@ -336,10 +322,6 @@ while True:
                     mtStopwatch.deinit_peripherals()
                 continue
 
-            # if mtStopwatch.leds_are_off():
-            #     logger.info("Sleeping deeply for %d minutes...", refresh_int_mins_val)
-            #     magtag.exit_and_deep_sleep(refresh_int_mins_val * 60)
-            # else:
             logger.info("Sleeping lightly for %d minutes...", refresh_int_mins_val)
             time.sleep(refresh_int_mins_val * 60)
             logger.debug("Repeating main loop")
