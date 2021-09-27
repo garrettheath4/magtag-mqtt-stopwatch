@@ -36,8 +36,8 @@ SLEEP_DAILY_BEFORE_HOUR_KEY = "sleep_daily_before_hour"
 SLEEP_DAILY_BEFORE_HOUR_DEFAULT = 24
 BACKLIGHT_BRIGHTNESS_KEY = "backlight_brightness"
 BACKLIGHT_BRIGHTNESS_DEFAULT = 0.0
-TIMEZONE_NAME_KEY = "timezone"
-TIMEZONE_NAME_DEFAULT = "America/New_York"
+TIMEZONE_OFFSET_KEY = "timezone_offset"
+TIMEZONE_OFFSET_DEFAULT = -4  # America/New_York
 
 # Required configurations
 MQTT_TOPIC_OUT = secrets["topic_past"]
@@ -51,7 +51,7 @@ refresh_int_mins_val = REFRESH_INT_MINS_DEFAULT
 leds_on_mins_threshold_val = LEDS_ON_MINS_THRESHOLD_DEFAULT
 sleep_daily_before_hour_val = SLEEP_DAILY_BEFORE_HOUR_DEFAULT
 backlight_brightness_val = BACKLIGHT_BRIGHTNESS_DEFAULT
-timezone_name_val = TIMEZONE_NAME_DEFAULT
+timezone_offset_val = TIMEZONE_OFFSET_DEFAULT
 
 logger = adafruit_logging.getLogger("code.py")
 logger.setLevel(adafruit_logging.DEBUG)
@@ -69,13 +69,14 @@ refresh_int_mins_val = get_optional_config(REFRESH_INT_MINS_KEY, refresh_int_min
 leds_on_mins_threshold_val = get_optional_config(LEDS_ON_MINS_THRESHOLD_KEY, leds_on_mins_threshold_val)
 sleep_daily_before_hour_val = get_optional_config(SLEEP_DAILY_BEFORE_HOUR_KEY, sleep_daily_before_hour_val)
 backlight_brightness_val = get_optional_config(BACKLIGHT_BRIGHTNESS_KEY, backlight_brightness_val)
-timezone_name_val = get_optional_config(TIMEZONE_NAME_KEY, timezone_name_val)
+timezone_offset_val = get_optional_config(TIMEZONE_OFFSET_KEY, timezone_offset_val)
 
-timezone_offset = 0
-if timezone_name_val == "America/New_York":
-    timezone_offset = -4
-
-timezone_obj = adafruit_datetime.timezone(adafruit_datetime.timedelta(hours=timezone_offset), name=timezone_name_val)
+timezone_name = "UTC"
+if timezone_offset_val >= 0:
+    timezone_name += "+"
+timezone_name += str(timezone_offset_val)
+timezone_obj = adafruit_datetime.timezone(adafruit_datetime.timedelta(hours=timezone_offset_val),
+                                          name=timezone_name)
 
 
 class LEDS:
@@ -128,11 +129,11 @@ class LEDS:
 
 
 class MagTagStopwatch:
-    def __init__(self, logging_level=adafruit_logging.DEBUG, debug_magtag=False):
+    def __init__(self, logging_level=adafruit_logging.DEBUG):
         self._logger = adafruit_logging.getLogger("MagTagStopwatch")
         self._logger.setLevel(logging_level)
 
-        self._magtag = MagTag(debug=debug_magtag)
+        self._magtag = MagTag(debug=(logging_level == adafruit_logging.DEBUG))
         self._magtag.network.connect()
         self._logger.info("WiFi connected to %s", SSID)
         self._leds = LEDS(self._magtag.peripherals)
@@ -241,7 +242,7 @@ class MagTagStopwatch:
 
 
 while True:
-    mtStopwatch = MagTagStopwatch(logging_level=adafruit_logging.DEBUG, debug_magtag=True)
+    mtStopwatch = MagTagStopwatch(logging_level=adafruit_logging.DEBUG)
     try:
         # Define callback methods which are called when events occur
         # pylint: disable=unused-argument
@@ -251,8 +252,6 @@ while True:
             logger.debug("Listening for topic changes on %s", MQTT_TOPIC_OUT)
             # Subscribe to all changes on the desired topic.
             client.subscribe(MQTT_TOPIC_OUT)
-            #logger.debug("Listening for topic changes on %s", MQTT_TOPIC_NOW)
-            #client.subscribe(MQTT_TOPIC_NOW)
 
         def disconnected(client, userdata, result_code):
             # This method is called when the client is disconnected
