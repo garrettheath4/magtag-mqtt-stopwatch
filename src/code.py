@@ -105,7 +105,7 @@ class LEDS:
                 self._peripherals.neopixel_disable = False
                 self._peripherals.neopixels.brightness = 1.0
                 self._peripherals.neopixels.fill((0, 0xFF, 0))
-        elif LEDS.should_leds_backlight():
+        elif LEDS.should_leds_backlight(time_now):
             if self.status != LEDS.BACKLIGHT:
                 logger.debug("Setting LEDs to BACKLIGHT")
                 self.status = LEDS.BACKLIGHT
@@ -123,12 +123,12 @@ class LEDS:
         return total_minutes >= leds_on_mins_threshold_val >= 0 and time_now.hour >= sleep_daily_before_hour_val
 
     @classmethod
-    def should_leds_backlight(cls):
-        return backlight_brightness_val > 0.0
+    def should_leds_backlight(cls, time_now):
+        return backlight_brightness_val > 0.0 and time_now.hour >= sleep_daily_before_hour_val
 
     @classmethod
     def leds_should_be_off(cls, time_now, total_minutes):
-        return not cls.should_leds_alert(time_now, total_minutes) and not cls.should_leds_backlight()
+        return not cls.should_leds_alert(time_now, total_minutes) and not cls.should_leds_backlight(time_now)
 
 
 class MagTagStopwatch:
@@ -204,6 +204,7 @@ class MagTagStopwatch:
         time_now = adafruit_datetime.datetime.now()
         time_now._tzinfo = timezone_obj
         self._logger.debug("Time now:  %s", str(time_now))
+
         delta_strs = []
 
         # Primary time
