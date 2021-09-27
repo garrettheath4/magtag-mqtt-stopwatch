@@ -16,6 +16,8 @@ import adafruit_logging
 import adafruit_minimqtt.adafruit_minimqtt as mqtt
 from adafruit_magtag.magtag import MagTag
 
+from default_configs import configs
+
 # Add a secrets.py to your filesystem that has a dictionary called secrets with "ssid" and
 # "password" keys with your WiFi credentials. DO NOT share that file or commit it into Git or other
 # source control.
@@ -26,6 +28,8 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
+for key, value in secrets.items():
+    configs[key] = value
 
 # Optional configuration keys and defaults
 REFRESH_INT_MINS_KEY = "refresh_mins"
@@ -40,11 +44,10 @@ TIMEZONE_OFFSET_KEY = "timezone_offset"
 TIMEZONE_OFFSET_DEFAULT = -4  # America/New_York
 
 # Required configurations
-MQTT_TOPIC_OUT = secrets["topic_past"]
-MQTT_TOPIC_NOW = secrets["topic_now"]
-SSID = secrets["ssid"]
-HOSTNAME = secrets["broker"]
-PORT = secrets["port"]
+MQTT_TOPIC_OUT = configs["topic_past"]
+SSID = configs["ssid"]
+HOSTNAME = configs["broker"]
+PORT = configs["port"]
 
 # Optional configurations
 refresh_int_mins_val = REFRESH_INT_MINS_DEFAULT
@@ -58,9 +61,9 @@ logger.setLevel(adafruit_logging.DEBUG)
 
 
 def get_optional_config(key, default):
-    if key in secrets:
-        logger.info("%s = %s", key, secrets[key])
-        return secrets[key]
+    if key in configs:
+        logger.info("%s = %s", key, configs[key])
+        return configs[key]
     logger.info("%s = %s  [default value]", key, default)
     return default
 
@@ -187,7 +190,7 @@ class MagTagStopwatch:
         return self._past_time_objs[time_idx]
 
     def _should_show_2_times(self) -> bool:
-        return self._past_time_objs[1]
+        return self._past_time_objs[1] and self._past_time_objs[1] < self._past_time_objs[0]
 
     @staticmethod
     def timedelta_to_hours_minutes(delta_time: adafruit_datetime.timedelta):
@@ -279,7 +282,7 @@ while True:
             keep_alive=15,
             socket_pool=pool,
         )
-        mqtt_client.enable_logger(adafruit_logging, log_level=adafruit_logging.DEBUG)
+        mqtt_client.enable_logger(adafruit_logging, log_level=adafruit_logging.INFO)
 
         # Setup the callback methods above
         mqtt_client.on_connect = connected
