@@ -1,11 +1,11 @@
 .PHONY: all prod dev clean FORCE
 
 TARGET = /Volumes/CIRCUITPY
-PROD_LIB = adafruit-circuitpython-bundle-6.x-mpy-20210314/lib
-DEV_LIB = adafruit-circuitpython-bundle-py-20210321/lib
+PROD_LIB = adafruit-circuitpython-bundle-7.x-mpy-20211217/lib
+DEV_LIB = adafruit-circuitpython-bundle-py-20211217/lib
 
-MODULE_DIRS = adafruit_bitmap_font adafruit_display_text adafruit_io adafruit_magtag adafruit_minimqtt adafruit_portalbase
-MODULE_FILES = adafruit_datetime adafruit_fakerequests adafruit_logging adafruit_requests neopixel simpleio
+MODULE_DIRS = adafruit_bitmap_font adafruit_display_text adafruit_io adafruit_logging adafruit_magtag adafruit_minimqtt adafruit_portalbase
+MODULE_FILES = adafruit_datetime adafruit_fakerequests adafruit_requests neopixel simpleio
 
 src/code.py: FORCE default_configs.py
 	rsync -avh src/code.py "$(TARGET)/code.py"

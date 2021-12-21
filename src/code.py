@@ -304,7 +304,7 @@ while True:
                 mqtt_client.is_connected()
             except mqtt.MMQTTException as mqtt_ex:
                 logger.error("MQTT client is NOT connected")
-                sys.print_exception(mqtt_ex)  # pylint: disable=no-member
+                print(mqtt_ex)
                 continue
             logger.debug("MQTT client connected")
             logger.debug("Starting MQTT client loop")
@@ -315,14 +315,14 @@ while True:
                 # catch *all* exceptions
                 logger.error("Failed to get data; retrying")
                 logger.error("%s: %s", type(loop_ex).__name__, loop_ex.args)
-                sys.print_exception(loop_ex)  # pylint: disable=no-member
+                print(loop_ex)
                 # Don't resubscribe since the on_connect method always subscribes
                 try:
                     mqtt_client.reconnect(resub_topics=False)
                 except Exception as reconnect_ex:  # pylint: disable=broad-except
                     logger.error("Failed to reconnect; resetting")
                     logger.error("%s: %s", type(reconnect_ex).__name__, reconnect_ex.args)
-                    sys.print_exception(reconnect_ex)  # pylint: disable=no-member
+                    print(reconnect_ex)
                     mtStopwatch.deinit_peripherals()
                 continue
 
@@ -333,7 +333,7 @@ while True:
     except Exception as main_ex:  # pylint: disable=broad-except
         logger.error("Exception from main loop; retrying")
         logger.error("%s: %s", type(main_ex).__name__, main_ex.args)
-        sys.print_exception(main_ex)  # pylint: disable=no-member
+        print(main_ex)
         if mtStopwatch:
             mtStopwatch.reset_system()
         continue
